@@ -1,0 +1,36 @@
+{
+  "name": "ls",
+  "version": "1.0.0",
+  "description": "234 hire freelancing services",
+  "main": "app.js",
+  "scripts": {
+    "build": "rimraf dist && npx tsc",
+    "prestart": "npm run build && node dist/app.js",
+    "start": "node dist/app.js",
+    "predev": "npm run build",
+    "postdev": "nodemon dist/app.js",
+    "pretest": "npm run build",
+    "dev": "npx tsc --watch & nodemon dist/app.js",
+    "test": "jest --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onyillto/234Hire_Backend.git"
+  },
+  "author": "briteck",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/onyillto/234Hire_Backend/issues"
+  },
+  "homepage": "https://github.com/onyillto/234Hire_Backend#readme",
+  "dependencies": {
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.15.18",
+    "express": "^5.1.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
