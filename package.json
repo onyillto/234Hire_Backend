@@ -10,7 +10,7 @@
     "predev": "npm run build",
     "postdev": "nodemon dist/app.js",
     "pretest": "npm run build",
-    "dev": "npx tsc --watch & nodemon dist/app.js",
+    "dev": "concurrently \"tsc --watch\" \"nodemon dist/app.js\"",
     "test": "jest --coverage"
   },
   "repository": {
@@ -26,11 +26,17 @@
   "dependencies": {
     "@types/express": "^5.0.1",
     "@types/node": "^22.15.18",
+    "concurrently": "^9.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "morgan": "^1.10.0",
     "rimraf": "^6.0.1",
     "typescript": "^5.8.3"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.18",
+    "@types/morgan": "^1.9.9",
     "nodemon": "^3.1.10"
   }
 }
