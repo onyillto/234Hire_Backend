@@ -6,7 +6,7 @@ import path from "path";
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 // Define and export environment variables with types
-export const env = {
+const env = {
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: parseInt(process.env.PORT || "5000", 10),
 
