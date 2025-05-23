@@ -12,20 +12,20 @@ export interface IUser extends Document {
   experience?: string;
   about?: string;
   skills?: {
-    fashion: boolean;
-    graphicDesigner: boolean;
-    videoEditor: boolean;
-    contentCreator: boolean;
-    photographer: boolean;
-    writer: boolean;
-    others: boolean;
+    fashion: string;
+    graphicDesigner: string;
+    videoEditor: string;
+    contentCreator: string;
+    photographer: string;
+    writer: string;
+    others: string;
   };
   resetPasswordToken?: string;
   resetPasswordExpire?: Date;
   createdAt: Date;
   updatedAt: Date;
-  comparePassword(enteredPassword: string): Promise<boolean>;
   getResetPasswordToken(): string;
+  getSignedJwtToken(): string;
 }
 
 const UserSchema: Schema = new Schema(
@@ -72,32 +72,32 @@ const UserSchema: Schema = new Schema(
     },
     skills: {
       fashion: {
-        type: Boolean,
-        default: false,
+        type: String,
+        default: "",
       },
       graphicDesigner: {
-        type: Boolean,
-        default: false,
+        type: String,
+        default: "",
       },
       videoEditor: {
-        type: Boolean,
-        default: false,
+        type: String,
+        default: "",
       },
       contentCreator: {
-        type: Boolean,
-        default: false,
+        type: String,
+        default: "",
       },
       photographer: {
-        type: Boolean,
-        default: false,
+        type: String,
+        default: "",
       },
       writer: {
-        type: Boolean,
-        default: false,
+        type: String,
+        default: "",
       },
       others: {
-        type: Boolean,
-        default: false,
+        type: String,
+        default: "",
       },
     },
     resetPasswordToken: String,
@@ -126,13 +126,6 @@ UserSchema.pre("save", async function (next) {
   }
 });
 
-// Method to compare passwords
-UserSchema.methods.comparePassword = async function (
-  enteredPassword: string
-): Promise<boolean> {
-  return await bcrypt.compare(enteredPassword, this.password);
-};
-
 // Generate and hash password token
 UserSchema.methods.getResetPasswordToken = function (): string {
   // Generate token
@@ -148,6 +141,13 @@ UserSchema.methods.getResetPasswordToken = function (): string {
   this.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
 
   return resetToken;
+};
+
+// Sign JWT and return - using AuthService
+UserSchema.methods.getSignedJwtToken = function () {
+  // We'll handle token generation in the controller using AuthService
+  // This method just returns the user ID for now
+  return this._id.toString();
 };
 
 export const User = mongoose.model<IUser>("User", UserSchema);
