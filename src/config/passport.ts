@@ -1,70 +1,37 @@
 // src/config/passport.ts
 import passport from "passport";
-import { Strategy as JwtStrategy, ExtractJwt } from "passport-jwt";
-import { Strategy as LocalStrategy } from "passport-local";
-import bcrypt from "bcryptjs";
+import {
+  Strategy as JwtStrategy,
+  ExtractJwt,
+  StrategyOptions,
+} from "passport-jwt";
 import { User } from "../models/user";
+import env from "./env";
 
-// Configure the JWT strategy for the passport
+const options: StrategyOptions = {
+  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+  secretOrKey: env.JWT_SECRET!,
+};
+
 passport.use(
-  new JwtStrategy(
-    {
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: process.env.JWT_SECRET || "your_jwt_secret",
-    },
-    async (jwtPayload, done) => {
-      try {
-        // Find the user based on the JWT payload
-        const user = await User.findById(jwtPayload.id).select("-password");
+  new JwtStrategy(options, async (jwt_payload, done) => {
+    try {
+      const user = await User.findById(jwt_payload.id) as InstanceType<typeof User> | null;
 
-        // If user doesn't exist, handle it
-        if (!user) {
-          return done(null, false);
-        }
-
-        // Otherwise, return the user
-        return done(null, user);
-      } catch (error) {
-        return done(error, false);
-      }
-    }
-  )
-);
-
-// Configure the Local strategy for login
-passport.use(
-  new LocalStrategy(
-    { usernameField: "username" },
-    async (username, password, done) => {
-      try {
-        // Find the user by username
-        const user = await User.findOne({
-          $or: [
-            { username: username.toLowerCase() },
-            { email: username.toLowerCase() },
-          ],
+      if (user) {
+        return done(null, {
+          id: (user._id as string).toString(),
+          username: user.username,
+          role: user.role || "user",
+          email: user.email,
         });
-
-        // If no user is found, return false
-        if (!user) {
-          return done(null, false, { message: "Invalid credentials" });
-        }
-
-        // Check if the password is correct
-        const isMatch = await bcrypt.compare(password, user.password);
-
-        // If password doesn't match, return false
-        if (!isMatch) {
-          return done(null, false, { message: "Invalid credentials" });
-        }
-
-        // If everything is OK, return the user
-        return done(null, user);
-      } catch (error) {
-        return done(error);
       }
+
+      return done(null, false);
+    } catch (error) {
+      return done(error, false);
     }
-  )
+  })
 );
 
 export default passport;

@@ -33,7 +33,6 @@
     "@types/node": "^22.15.18",
     "@types/nodemailer": "^6.4.17",
     "@types/passport": "^1.0.17",
-    "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
     "@types/winston": "^2.4.4",
     "bcryptjs": "^3.0.2",
@@ -58,6 +57,7 @@
     "@types/cors": "^2.8.18",
     "@types/jwt-encode": "^1.0.3",
     "@types/morgan": "^1.9.9",
+    "@types/passport-jwt": "^4.0.1",
     "nodemon": "^3.1.10"
   }
 }

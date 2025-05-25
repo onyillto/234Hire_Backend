@@ -1,6 +1,6 @@
 // src/services/email.service.ts
 import nodemailer from "nodemailer";
-import logger from "../utils/logger";
+import env from "../config/env";
 
 interface EmailOptions {
   email: string;
@@ -10,21 +10,27 @@ interface EmailOptions {
 }
 
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
-  // Create a transporter
+  // Create a transporter with enhanced configuration
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.mailtrap.io",
-    port: parseInt(process.env.SMTP_PORT || "2525", 10),
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_SECURE, // true for 465, false for other ports
     auth: {
-      user: process.env.SMTP_USER || "",
-      pass: process.env.SMTP_PASSWORD || "",
+      user: env.SMTP_USER,
+      pass: env.SMTP_PASSWORD,
     },
+    tls: {
+      rejectUnauthorized: env.SMTP_TLS_REJECT_UNAUTHORIZED,
+    },
+    // Gmail specific settings
+    ...(env.SMTP_HOST === "smtp.gmail.com" && {
+      service: "gmail",
+    }),
   });
 
   // Define email options
   const mailOptions = {
-    from: `${process.env.FROM_NAME || "234 Hire"} <${
-      process.env.FROM_EMAIL || "noreply@appname.com"
-    }>`,
+    from: `${env.FROM_NAME} <${env.FROM_EMAIL}>`,
     to: options.email,
     subject: options.subject,
     text: options.message,
@@ -32,11 +38,33 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
   };
 
   try {
+    // Verify connection configuration
+    await transporter.verify();
+    console.log("📧 SMTP Server connection verified");
+
     // Send email
     const info = await transporter.sendMail(mailOptions);
-    logger.info(`Email sent: ${info.messageId}`);
-  } catch (error) {
-    logger.error(`Error sending email: ${error}`);
-    throw error;
+    console.log(`✅ Email sent successfully: ${info.messageId}`);
+
+    // Log additional info for Gmail
+    if (env.SMTP_HOST === "smtp.gmail.com") {
+      console.log(`📧 Gmail delivery status: ${info.response}`);
+    }
+  } catch (error: any) {
+    console.error(`❌ Error sending email:`, error.message);
+
+    // Provide helpful error messages
+    if (error.code === "EAUTH") {
+      console.error("🔐 Authentication failed. Check your email credentials.");
+      console.error(
+        "💡 For Gmail: Make sure you're using an App Password, not your regular password."
+      );
+    } else if (error.code === "ECONNECTION") {
+      console.error("🌐 Connection failed. Check your SMTP settings.");
+    } else if (error.code === "EMESSAGE") {
+      console.error("📝 Message error. Check your email content.");
+    }
+
+    throw new Error(`Failed to send email: ${error.message}`);
   }
 };

@@ -11,21 +11,23 @@ export interface IUser extends Document {
   role?: string;
   experience?: string;
   about?: string;
-  skills?: {
-    fashion: string;
-    graphicDesigner: string;
-    videoEditor: string;
-    contentCreator: string;
-    photographer: string;
-    writer: string;
-    others: string;
-  };
+  skills?: Record<string, string>; // dynamic skill keys
+  token?: string; // for JWT token storage
   resetPasswordToken?: string;
   resetPasswordExpire?: Date;
+  // Email verification OTP fields
+  emailVerificationOTP?: string;
+  emailVerificationOTPExpire?: Date;
+  isEmailVerified?: boolean;
+  // Forgot password OTP fields
+  forgotPasswordOTP?: string;
+  forgotPasswordOTPExpire?: Date;
   createdAt: Date;
   updatedAt: Date;
   getResetPasswordToken(): string;
   getSignedJwtToken(): string;
+  generateEmailVerificationOTP(): string;
+  generateForgotPasswordOTP(): string;
 }
 
 const UserSchema: Schema = new Schema(
@@ -51,7 +53,7 @@ const UserSchema: Schema = new Schema(
       type: String,
       required: [true, "Password is required"],
       minlength: [8, "Password must be at least 8 characters"],
-      select: false, // Don't return password in queries
+      select: false,
     },
     fullName: {
       type: String,
@@ -71,37 +73,35 @@ const UserSchema: Schema = new Schema(
       maxlength: [500, "About must not exceed 500 characters"],
     },
     skills: {
-      fashion: {
-        type: String,
-        default: "",
-      },
-      graphicDesigner: {
-        type: String,
-        default: "",
-      },
-      videoEditor: {
-        type: String,
-        default: "",
-      },
-      contentCreator: {
-        type: String,
-        default: "",
-      },
-      photographer: {
-        type: String,
-        default: "",
-      },
-      writer: {
-        type: String,
-        default: "",
-      },
-      others: {
-        type: String,
-        default: "",
-      },
+      type: Map,
+      of: String,
+      default: {},
     },
+    token: { type: String },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    // Email verification OTP fields
+    emailVerificationOTP: {
+      type: String,
+      select: false, // Don't return OTP in queries by default
+    },
+    emailVerificationOTPExpire: {
+      type: Date,
+      select: false, // Don't return expiry in queries by default
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    // Forgot password OTP fields
+    forgotPasswordOTP: {
+      type: String,
+      select: false, // Don't return OTP in queries by default
+    },
+    forgotPasswordOTPExpire: {
+      type: Date,
+      select: false, // Don't return expiry in queries by default
+    },
   },
   {
     timestamps: true,
@@ -141,6 +141,36 @@ UserSchema.methods.getResetPasswordToken = function (): string {
   this.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
 
   return resetToken;
+};
+
+// Generate email verification OTP - 4 DIGITS
+UserSchema.methods.generateEmailVerificationOTP = function (): string {
+  // Generate 4-digit OTP
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+  // Set OTP and expiration (10 minutes)
+  this.emailVerificationOTP = otp;
+  this.emailVerificationOTPExpire = new Date(Date.now() + 10 * 60 * 1000);
+
+  console.log("🔍 Debug - Generated Email Verification OTP:", otp);
+  console.log("🔍 Debug - OTP Expiry:", this.emailVerificationOTPExpire);
+
+  return otp;
+};
+
+// Generate forgot password OTP - 4 DIGITS
+UserSchema.methods.generateForgotPasswordOTP = function (): string {
+  // Generate 4-digit OTP
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+  // Set OTP and expiration (10 minutes)
+  this.forgotPasswordOTP = otp;
+  this.forgotPasswordOTPExpire = new Date(Date.now() + 10 * 60 * 1000);
+
+  console.log("🔍 Debug - Generated Forgot Password OTP:", otp);
+  console.log("🔍 Debug - OTP Expiry:", this.forgotPasswordOTPExpire);
+
+  return otp;
 };
 
 // Sign JWT and return - using AuthService

@@ -1,7 +1,7 @@
 // src/app.ts
 import dotenv from "dotenv";
 dotenv.config();
-
+import passport from "./config/passport";
 import express, { Application, Request, Response, NextFunction } from "express";
 import morgan from "morgan";
 import cors from "cors";
@@ -9,7 +9,7 @@ import { connectDB } from "./config/database";
 import routes from "./routes";
 
 const app: Application = express();
-
+app.use(passport.initialize());
 // Connect to MongoDB
 connectDB();
 
