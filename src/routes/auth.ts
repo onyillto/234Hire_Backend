@@ -9,7 +9,7 @@ import {
   sendVerificationOTP,
   verifyEmailOTP,
   resetPassword,
-  verifyForgotPasswordOTP,
+  verifyForgotPasswordOTP,passwordRecovery
 } from "../controllers/auth";
 import { protect } from "../middlewares/auth";
 import { validate } from "../middlewares/validation";
@@ -238,6 +238,38 @@ router.post(
   resetPassword
 );
 
+
+
+// Password recovery validation (simple - no OTP)
+const passwordRecoveryValidation = [
+  body("email")
+    .isEmail()
+    .normalizeEmail()
+    .withMessage("Please provide a valid email address"),
+  body("password")
+    .isString()
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters")
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .withMessage(
+      "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character"
+    ),
+  body("confirmPassword")
+    .isString()
+    .isLength({ min: 8 })
+    .withMessage("Confirm password must be at least 8 characters"),
+];
+
+// Password recovery route (for your password recovery page)
+router.post(
+  "/password-recovery",
+  (req, res, next) => {
+    console.log("🎯 Auth route /password-recovery hit!");
+    next();
+  },
+  validate(passwordRecoveryValidation),
+  passwordRecovery
+);
 
 console.log("✅ Auth routes set up complete");
 

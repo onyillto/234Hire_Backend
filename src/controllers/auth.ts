@@ -589,3 +589,92 @@ export const resetPassword = async (
   }
 };
 
+// @desc   Complete password recovery (set new password after OTP verification)
+// @route  POST /api/v1/auth/password-recovery
+// @access Public
+export const passwordRecovery = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email, password, confirmPassword } = req.body;
+
+    console.log("🔍 Debug - Password recovery request for:", email);
+
+    // Validate required fields
+    if (!email || !password || !confirmPassword) {
+      return next(new ErrorResponse("Please provide email, password, and confirm password", 400));
+    }
+
+    // Check if passwords match
+    if (password !== confirmPassword) {
+      return next(new ErrorResponse("Passwords do not match", 400));
+    }
+
+    // Validate password strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+    if (password.length < 8 || !passwordRegex.test(password)) {
+      return next(new ErrorResponse(
+        "Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character", 
+        400
+      ));
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email }).select("+password");
+
+    if (!user) {
+      console.log("❌ Debug - User not found");
+      return next(new ErrorResponse("No account found with that email address", 404));
+    }
+
+    console.log("✅ Debug - User found:", user.username);
+
+    // Update password (will be hashed by the pre-save middleware)
+    user.password = password;
+    
+    // Clear any existing tokens to force re-login
+    user.token = undefined;
+    
+    await user.save();
+
+    console.log("✅ Debug - Password updated successfully");
+
+    // Send confirmation email
+    try {
+      const emailTemplate = EmailTemplates.passwordChanged(
+        user.fullName || user.username
+      );
+
+      await sendEmail({
+        email: user.email,
+        subject: emailTemplate.subject,
+        message: emailTemplate.text,
+        html: emailTemplate.html,
+      });
+
+      console.log("✅ Debug - Password change confirmation email sent");
+    } catch (emailError) {
+      console.error("❌ Debug - Password change email failed:", emailError);
+      // Don't fail the request if email fails
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Password has been reset successfully. You can now login with your new password.",
+      data: {
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+        },
+        redirectTo: "/signin"
+      }
+    });
+
+  } catch (error) {
+    console.log("❌ Debug - Error in passwordRecovery:", error);
+    next(error);
+  }
+};
