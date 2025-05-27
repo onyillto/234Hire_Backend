@@ -7,6 +7,7 @@ import morgan from "morgan";
 import cors from "cors";
 import { connectDB } from "./config/database";
 import routes from "./routes";
+import path from "path";
 
 const app: Application = express();
 app.use(passport.initialize());
@@ -17,6 +18,13 @@ connectDB();
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// ===== STATIC FILE SERVING =====
+// Serve uploaded files statically
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+
 
 // CORS configuration
 app.use(

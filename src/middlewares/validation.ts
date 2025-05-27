@@ -1,6 +1,6 @@
-// src/middlewares/validation.ts
 import { Request, Response, NextFunction } from "express";
-import { validationResult, ValidationChain } from "express-validator";
+import { validationResult } from "express-validator";
+import { ValidationChain } from "express-validator";
 import { ErrorResponse } from "../utils/error-response";
 
 export const validate = (validations: ValidationChain[]) => {
@@ -22,4 +22,4 @@ export const validate = (validations: ValidationChain[]) => {
     console.log("✅ Validation passed");
     next();
   };
-};
+}

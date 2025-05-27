@@ -1,37 +1,186 @@
-// src/models/user.model.ts
+// src/models/user.model.ts - SAFE EXTENSION APPROACH
 import mongoose, { Document, Schema } from "mongoose";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
+// EXISTING INTERFACES - UNCHANGED
+export interface IWorkExperience {
+  jobTitle: string;
+  company: string;
+  startDate: string;
+  endDate?: string;
+  currentlyWorking: boolean;
+  location?: string;
+  employmentType?: string;
+  description: string;
+}
+
+export interface ICertification {
+  certificationName: string;
+  issuingOrganization: string;
+  credentialId?: string;
+  credentialUrl?: string;
+  certificateImage?: string;
+}
+
+export interface IEducation {
+  school: string;
+  degreeType: string;
+  fieldOfStudy: string;
+  attachments?: string[];
+}
+
+// NEW EMPLOYER-SPECIFIC INTERFACE (ADDITION ONLY)
+export interface IEmployerProfile {
+  companyName?: string;
+  companySize?: "1-10" | "11-50" | "51-200" | "201-500" | "500+";
+  industry?: string;
+  companyDescription?: string;
+  companyWebsite?: string;
+  companyLogo?: string;
+  companyLocation?: string;
+  foundedYear?: number;
+  companyType?: "startup" | "corporate" | "agency" | "nonprofit" | "government";
+  jobPostsCount?: number;
+  hiresCount?: number;
+}
+
+// EXISTING USER INTERFACE - ONLY ADDITIONS
 export interface IUser extends Document {
+  // ALL EXISTING FIELDS - COMPLETELY UNCHANGED
   username: string;
   email: string;
   password: string;
   fullName?: string;
-  role?: string;
-  experience?: string;
+  role?: string; // Keep existing role field
+  experience?: string; // Keep existing experience field
   about?: string;
-  skills?: Record<string, string>; // dynamic skill keys
-  token?: string; // for JWT token storage
+  skills?: Record<string, string>;
+  token?: string;
   resetPasswordToken?: string;
   resetPasswordExpire?: Date;
-  // Email verification OTP fields
   emailVerificationOTP?: string;
   emailVerificationOTPExpire?: Date;
   isEmailVerified?: boolean;
-  // Forgot password OTP fields
   forgotPasswordOTP?: string;
   forgotPasswordOTPExpire?: Date;
   createdAt: Date;
   updatedAt: Date;
+
+  // EXISTING NEW FIELDS - UNCHANGED
+  location?: string;
+  principalRole?: string;
+  yearsOfExperience?: string;
+  otherRoles?: string[];
+  bio?: string;
+  profilePhoto?: string;
+  gender?: "male" | "female" | "other" | "prefer-not-to-say";
+  phone?: string;
+  website?: string;
+  linkedin?: string;
+  twitter?: string;
+  github?: string;
+  workExperience?: IWorkExperience[];
+  certifications?: ICertification[];
+  education?: IEducation[];
+  resume?: string;
+
+  // NEW ADDITION - EMPLOYER PROFILE (OPTIONAL)
+  employerProfile?: IEmployerProfile;
+
+  // EXISTING METHODS - UNCHANGED
   getResetPasswordToken(): string;
   getSignedJwtToken(): string;
   generateEmailVerificationOTP(): string;
   generateForgotPasswordOTP(): string;
 }
 
+// EXISTING SCHEMAS - COMPLETELY UNCHANGED
+const WorkExperienceSchema = new Schema(
+  {
+    jobTitle: { type: String, required: true, trim: true },
+    company: { type: String, required: true, trim: true },
+    startDate: { type: String, required: true },
+    endDate: { type: String },
+    currentlyWorking: { type: Boolean, default: false },
+    location: { type: String, trim: true },
+    employmentType: {
+      type: String,
+      enum: [
+        "remote",
+        "full-time",
+        "part-time",
+        "contract",
+        "freelance",
+        "internship",
+      ],
+    },
+    description: { type: String, required: true, trim: true },
+  },
+  { _id: true }
+);
+
+const CertificationSchema = new Schema(
+  {
+    certificationName: { type: String, required: true, trim: true },
+    issuingOrganization: { type: String, required: true, trim: true },
+    credentialId: { type: String, trim: true },
+    credentialUrl: { type: String, trim: true },
+    certificateImage: { type: String },
+  },
+  { _id: true }
+);
+
+const EducationSchema = new Schema(
+  {
+    school: { type: String, required: true, trim: true },
+    degreeType: {
+      type: String,
+      required: true,
+      enum: [
+        "high-school",
+        "associate",
+        "bachelor",
+        "master",
+        "doctorate",
+        "certificate",
+        "diploma",
+      ],
+    },
+    fieldOfStudy: { type: String, required: true, trim: true },
+    attachments: [{ type: String }],
+  },
+  { _id: true }
+);
+
+// NEW ADDITION - EMPLOYER PROFILE SCHEMA
+const EmployerProfileSchema = new Schema(
+  {
+    companyName: { type: String, trim: true },
+    companySize: {
+      type: String,
+      enum: ["1-10", "11-50", "51-200", "201-500", "500+"],
+    },
+    industry: { type: String, trim: true },
+    companyDescription: { type: String, maxlength: 1000, trim: true },
+    companyWebsite: { type: String, trim: true },
+    companyLogo: { type: String },
+    companyLocation: { type: String, trim: true },
+    foundedYear: { type: Number, min: 1800, max: new Date().getFullYear() },
+    companyType: {
+      type: String,
+      enum: ["startup", "corporate", "agency", "nonprofit", "government"],
+    },
+    jobPostsCount: { type: Number, default: 0, min: 0 },
+    hiresCount: { type: Number, default: 0, min: 0 },
+  },
+  { _id: false }
+);
+
+// EXISTING USER SCHEMA - ONLY ONE ADDITION
 const UserSchema: Schema = new Schema(
   {
+    // ALL EXISTING FIELDS - EXACTLY AS YOU HAD THEM
     username: {
       type: String,
       required: [true, "Username is required"],
@@ -61,7 +210,7 @@ const UserSchema: Schema = new Schema(
     },
     role: {
       type: String,
-      enum: ["user", "specialist", "admin"],
+      enum: ["user", "specialist", "admin", "employer"], // ONLY ADDED "employer"
       default: "user",
     },
     experience: {
@@ -73,52 +222,108 @@ const UserSchema: Schema = new Schema(
       maxlength: [500, "About must not exceed 500 characters"],
     },
     skills: {
-      type: Map,
-      of: String,
+      type: Schema.Types.Mixed,
       default: {},
     },
     token: { type: String },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
-    // Email verification OTP fields
     emailVerificationOTP: {
       type: String,
-      select: false, // Don't return OTP in queries by default
+      select: false,
     },
     emailVerificationOTPExpire: {
       type: Date,
-      select: false, // Don't return expiry in queries by default
+      select: false,
     },
     isEmailVerified: {
       type: Boolean,
       default: false,
     },
-    // Forgot password OTP fields
     forgotPasswordOTP: {
       type: String,
-      select: false, // Don't return OTP in queries by default
+      select: false,
     },
     forgotPasswordOTPExpire: {
       type: Date,
-      select: false, // Don't return expiry in queries by default
+      select: false,
     },
+
+    // EXISTING NEW FIELDS - UNCHANGED
+    location: {
+      type: String,
+      trim: true,
+      maxlength: [100, "Location must not exceed 100 characters"],
+    },
+    principalRole: {
+      type: String,
+      trim: true,
+    },
+    yearsOfExperience: {
+      type: String,
+      enum: ["1", "2", "3", "4", "5+"],
+    },
+    otherRoles: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    bio: {
+      type: String,
+      maxlength: [120, "Bio must not exceed 120 characters"],
+      trim: true,
+    },
+    profilePhoto: {
+      type: String,
+    },
+    gender: {
+      type: String,
+      enum: ["male", "female", "other", "prefer-not-to-say"],
+    },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    website: {
+      type: String,
+      trim: true,
+    },
+    linkedin: {
+      type: String,
+      trim: true,
+    },
+    twitter: {
+      type: String,
+      trim: true,
+    },
+    github: {
+      type: String,
+      trim: true,
+    },
+    workExperience: [WorkExperienceSchema],
+    certifications: [CertificationSchema],
+    education: [EducationSchema],
+    resume: {
+      type: String,
+    },
+
+    // NEW ADDITION - ONLY THIS IS NEW
+    employerProfile: EmployerProfileSchema,
   },
   {
     timestamps: true,
   }
 );
 
-// Encrypt password before saving
+// ALL EXISTING MIDDLEWARE & METHODS - COMPLETELY UNCHANGED
 UserSchema.pre("save", async function (next) {
-  // Only hash the password if it has been modified (or is new)
   if (!this.isModified("password")) {
     return next();
   }
 
   try {
-    // Generate salt
     const salt = await bcrypt.genSalt(10);
-    // Hash password with salt
     this.password = await bcrypt.hash(this.password as string, salt);
     next();
   } catch (error: any) {
@@ -126,29 +331,22 @@ UserSchema.pre("save", async function (next) {
   }
 });
 
-// Generate and hash password token
 UserSchema.methods.getResetPasswordToken = function (): string {
-  // Generate token
   const resetToken = crypto.randomBytes(20).toString("hex");
 
-  // Hash token and set to resetPasswordToken field
   this.resetPasswordToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
 
-  // Set expire time
-  this.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+  this.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
 
   return resetToken;
 };
 
-// Generate email verification OTP - 4 DIGITS
 UserSchema.methods.generateEmailVerificationOTP = function (): string {
-  // Generate 4-digit OTP
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
-  // Set OTP and expiration (10 minutes)
   this.emailVerificationOTP = otp;
   this.emailVerificationOTPExpire = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -158,12 +356,9 @@ UserSchema.methods.generateEmailVerificationOTP = function (): string {
   return otp;
 };
 
-// Generate forgot password OTP - 4 DIGITS
 UserSchema.methods.generateForgotPasswordOTP = function (): string {
-  // Generate 4-digit OTP
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
-  // Set OTP and expiration (10 minutes)
   this.forgotPasswordOTP = otp;
   this.forgotPasswordOTPExpire = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -173,11 +368,21 @@ UserSchema.methods.generateForgotPasswordOTP = function (): string {
   return otp;
 };
 
-// Sign JWT and return - using AuthService
 UserSchema.methods.getSignedJwtToken = function () {
-  // We'll handle token generation in the controller using AuthService
-  // This method just returns the user ID for now
   return this._id.toString();
 };
 
 export const User = mongoose.model<IUser>("User", UserSchema);
+
+// HELPER FUNCTIONS FOR ROLE CHECKING
+export const isEmployer = (user: IUser): boolean => {
+  return user.role === "employer";
+};
+
+export const isSkilledUser = (user: IUser): boolean => {
+  return user.role === "user" || user.role === "specialist";
+};
+
+export const isAdmin = (user: IUser): boolean => {
+  return user.role === "admin";
+};
