@@ -176,6 +176,79 @@ export const completeOnboarding = async (
 };
 
 
+export const completePartnerOnboarding = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const {
+      fullName,
+      role,
+      about,
+      companyName,
+      industry,
+      projectType,
+      companySize,
+      companyDescription,
+      companyWebsite,
+      companyLocation,
+      foundedYear,
+      companyType,
+    } = req.body;
+
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return next(new ErrorResponse("User not found in request", 500));
+    }
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return next(new ErrorResponse("User not found", 404));
+    }
+
+    // Update basic user fields
+    user.fullName = fullName;
+    user.role = role;
+    user.about = about;
+
+    // Create/update employer profile (cleaned up)
+    user.employerProfile = {
+      companyName,
+      industry,
+      projectType,
+      companySize,
+      companyDescription,
+      companyWebsite,
+      companyLocation,
+      foundedYear,
+      companyType,
+      jobPostsCount: 0,
+      hiresCount: 0,
+    };
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Partner onboarding completed successfully",
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        about: user.about,
+        employerProfile: user.employerProfile,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 
 // @desc   Login user

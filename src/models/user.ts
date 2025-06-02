@@ -1,4 +1,4 @@
-// src/models/user.model.ts - SAFE EXTENSION APPROACH
+// src/models/user.model.ts - UPDATED WITH PARTNER SUPPORT
 import mongoose, { Document, Schema } from "mongoose";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
@@ -30,7 +30,7 @@ export interface IEducation {
   attachments?: string[];
 }
 
-// NEW EMPLOYER-SPECIFIC INTERFACE (ADDITION ONLY)
+// EMPLOYER-SPECIFIC INTERFACE (CLEANED UP)
 export interface IEmployerProfile {
   companyName?: string;
   companySize?: "1-10" | "11-50" | "51-200" | "201-500" | "500+";
@@ -43,6 +43,8 @@ export interface IEmployerProfile {
   companyType?: "startup" | "corporate" | "agency" | "nonprofit" | "government";
   jobPostsCount?: number;
   hiresCount?: number;
+  // PARTNER SPECIFIC
+  projectType?: string;
 }
 
 // EXISTING USER INTERFACE - ONLY ADDITIONS
@@ -85,7 +87,7 @@ export interface IUser extends Document {
   education?: IEducation[];
   resume?: string;
 
-  // NEW ADDITION - EMPLOYER PROFILE (OPTIONAL)
+  // EMPLOYER PROFILE (NOW SUPPORTS PARTNER FIELDS TOO)
   employerProfile?: IEmployerProfile;
 
   // EXISTING METHODS - UNCHANGED
@@ -153,7 +155,7 @@ const EducationSchema = new Schema(
   { _id: true }
 );
 
-// NEW ADDITION - EMPLOYER PROFILE SCHEMA
+// EMPLOYER PROFILE SCHEMA (CLEANED UP)
 const EmployerProfileSchema = new Schema(
   {
     companyName: { type: String, trim: true },
@@ -173,11 +175,13 @@ const EmployerProfileSchema = new Schema(
     },
     jobPostsCount: { type: Number, default: 0, min: 0 },
     hiresCount: { type: Number, default: 0, min: 0 },
+    // PARTNER SPECIFIC
+    projectType: { type: String, trim: true },
   },
   { _id: false }
 );
 
-// EXISTING USER SCHEMA - ONLY ONE ADDITION
+// UPDATED USER SCHEMA WITH PARTNER ROLE
 const UserSchema: Schema = new Schema(
   {
     // ALL EXISTING FIELDS - EXACTLY AS YOU HAD THEM
@@ -200,7 +204,7 @@ const UserSchema: Schema = new Schema(
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
+      required: [true, "Password must be at least 8 characters"],
       minlength: [8, "Password must be at least 8 characters"],
       select: false,
     },
@@ -210,7 +214,7 @@ const UserSchema: Schema = new Schema(
     },
     role: {
       type: String,
-      enum: ["user", "specialist", "admin", "employer"], // ONLY ADDED "employer"
+      enum: ["user", "specialist", "admin", "employer", "partner"], // ADDED "partner"
       default: "user",
     },
     experience: {
@@ -308,7 +312,7 @@ const UserSchema: Schema = new Schema(
       type: String,
     },
 
-    // NEW ADDITION - ONLY THIS IS NEW
+    // EMPLOYER PROFILE (NOW SUPPORTS PARTNER FIELDS)
     employerProfile: EmployerProfileSchema,
   },
   {
@@ -374,9 +378,13 @@ UserSchema.methods.getSignedJwtToken = function () {
 
 export const User = mongoose.model<IUser>("User", UserSchema);
 
-// HELPER FUNCTIONS FOR ROLE CHECKING
+// UPDATED HELPER FUNCTIONS FOR ROLE CHECKING
 export const isEmployer = (user: IUser): boolean => {
   return user.role === "employer";
+};
+
+export const isPartner = (user: IUser): boolean => {
+  return user.role === "partner";
 };
 
 export const isSkilledUser = (user: IUser): boolean => {
@@ -385,4 +393,8 @@ export const isSkilledUser = (user: IUser): boolean => {
 
 export const isAdmin = (user: IUser): boolean => {
   return user.role === "admin";
+};
+
+export const isEmployerOrPartner = (user: IUser): boolean => {
+  return user.role === "employer" || user.role === "partner";
 };
