@@ -14,3 +14,10 @@ export const applyJobValidation = [
     .trim()
     .withMessage("Resume URL must be a valid string"),
 ];
+
+
+export const updateApplicationStatusValidation = [
+  body("status")
+    .isIn(["pending", "reviewed", "accepted", "rejected"])
+    .withMessage("Status must be: pending, reviewed, accepted, or rejected"),
+];

@@ -147,3 +147,190 @@ export const getMyApplications = async (
     next(error);
   }
 };
+
+
+// Get applications for my jobs (Partner only)
+export const getJobApplications = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id: jobId } = req.params;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return next(new ErrorResponse("User not found in request", 500));
+    }
+
+    // Check if user is partner
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new ErrorResponse("User not found", 404));
+    }
+
+    if (user.role !== "partner") {
+      return next(new ErrorResponse("Only partners can view job applications", 403));
+    }
+
+    // Check if job exists and belongs to this partner
+    const job = await Job.findById(jobId);
+    if (!job) {
+      return next(new ErrorResponse("Job not found", 404));
+    }
+
+    if (job.postedBy.toString() !== userId) {
+      return next(new ErrorResponse("Not authorized to view applications for this job", 403));
+    }
+
+    const { status, page = 1, limit = 10 } = req.query;
+
+    // Build filter
+    const filter: any = { job: jobId };
+    if (status) {
+      filter.status = status;
+    }
+
+    // Pagination
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get applications with applicant details
+    const applications = await Application.find(filter)
+      .populate('applicant', 'fullName email skills experience location profilePhoto')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    const total = await Application.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      job: {
+        id: job._id,
+        title: job.title,
+        location: job.location,
+        jobType: job.jobType
+      },
+      applications,
+      pagination: {
+        current: pageNum,
+        pages: Math.ceil(total / limitNum),
+        total
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Update application status (Partner only)
+export const updateApplicationStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id: applicationId } = req.params;
+    const { status } = req.body;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return next(new ErrorResponse("User not found in request", 500));
+    }
+
+    // Check if user is partner
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new ErrorResponse("User not found", 404));
+    }
+
+    if (user.role !== "partner") {
+      return next(new ErrorResponse("Only partners can update application status", 403));
+    }
+
+    // Find application with job details
+    const application = await Application.findById(applicationId).populate('job');
+    if (!application) {
+      return next(new ErrorResponse("Application not found", 404));
+    }
+
+    // Check if this partner owns the job
+    if ((application.job as any).postedBy.toString() !== userId) {
+      return next(new ErrorResponse("Not authorized to update this application", 403));
+    }
+
+    // Update application status
+    application.status = status;
+    await application.save();
+
+    // If accepted, increment hires count
+    if (status === "accepted") {
+      await User.findByIdAndUpdate(
+        userId,
+        { $inc: { 'employerProfile.hiresCount': 1 } }
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Application ${status} successfully`,
+      application: {
+        id: application._id,
+        status: application.status,
+        applicant: application.applicant,
+        updatedAt: application.updatedAt
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get single application details (Partner only)
+export const getApplicationById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id: applicationId } = req.params;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return next(new ErrorResponse("User not found in request", 500));
+    }
+
+    // Check if user is partner
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new ErrorResponse("User not found", 404));
+    }
+
+    if (user.role !== "partner") {
+      return next(new ErrorResponse("Only partners can view application details", 403));
+    }
+
+    // Find application with full details - INCLUDE postedBy in job population
+    const application = await Application.findById(applicationId)
+      .populate('applicant', 'fullName email skills experience location profilePhoto bio workExperience education certifications')
+      .populate('job', 'title location jobType workType postedBy'); // ADD postedBy here
+
+    if (!application) {
+      return next(new ErrorResponse("Application not found", 404));
+    }
+
+    // Check if this partner owns the job - ADD null check
+    if (!application.job || (application.job as any).postedBy.toString() !== userId) {
+      return next(new ErrorResponse("Not authorized to view this application", 403));
+    }
+
+    res.status(200).json({
+      success: true,
+      application
+    });
+  } catch (error) {
+    next(error);
+  }
+};
