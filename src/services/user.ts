@@ -6,6 +6,9 @@ import { ErrorResponse } from "../utils/error-response";
  * User service - handles business logic for user operations
  */
 export class UserService {
+  static findById(userId: any) {
+      throw new Error("Method not implemented.");
+  }
   /**
    * Get user by ID
    * @param id User ID

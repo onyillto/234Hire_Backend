@@ -3,6 +3,7 @@ declare module "express-validator" {
   import { Request, Response, NextFunction } from "express";
 
   export interface ValidationChain {
+    isISO8601(): unknown;
     run(req: Request): Promise<any>;
 
     // String validation methods
