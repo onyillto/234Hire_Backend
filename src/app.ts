@@ -10,23 +10,19 @@ import routes from "./routes";
 import path from "path";
 
 const app: Application = express();
-app.use(passport.initialize());
+
 // Connect to MongoDB
 connectDB();
 
 // Middleware
 app.use(morgan("dev"));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// ===== STATIC FILE SERVING =====
-// Serve uploaded files statically
+// Static files
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
-
-// CORS configuration
+// CORS
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || "*",
@@ -35,18 +31,7 @@ app.use(
   })
 );
 
-// Add request logging middleware
-app.use((req: Request, res: Response, next: NextFunction) => {
-  console.log(`🔍 ${new Date().toISOString()} - ${req.method} ${req.path}`);
-  console.log("📝 Request Body:", req.body);
-  console.log("📋 Request Headers:", req.headers);
-  next();
-});
-
-// Routes
-app.use("/api/v1", routes);
-
-// Add a simple test route
+// Public test route (before Passport)
 app.get("/test", (req: Request, res: Response) => {
   console.log("🎯 Test endpoint hit!");
   res.json({
@@ -55,30 +40,28 @@ app.get("/test", (req: Request, res: Response) => {
   });
 });
 
-// Add another test for the API path
-app.get("/api/v1/test", (req: Request, res: Response) => {
-  console.log("🎯 API test endpoint hit!");
-  res.json({
-    message: "API route is working!",
-    timestamp: new Date().toISOString(),
-  });
+// Initialize Passport after public routes
+app.use(passport.initialize());
+
+// Request logging
+app.use((req: Request, res: Response, next: NextFunction) => {
+  console.log(`🔍 ${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
 });
 
-// Error handling middleware
+// API routes
+app.use("/api/v1", routes);
+console.log('successfuy loaded routes');
+// Error handling
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {
-  console.log("❌ Error caught:", error);
-  console.log("📍 Error at:", req.method, req.path);
-
+  console.error("❌ Error caught:", error);
   res.status(error.statusCode || 500).json({
     success: false,
     error: error.message || "Server Error",
   });
 });
 
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const PORT = process.env.PORT || 7000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 export default app;

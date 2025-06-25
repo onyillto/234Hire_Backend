@@ -51,7 +51,7 @@ const ApplicationSchema: Schema = new Schema(
   }
 );
 
-// Compound index to prevent duplicate applications
+// Compound index to prevent duplicate application
 ApplicationSchema.index({ job: 1, applicant: 1 }, { unique: true });
 
 // Middleware to increment applications count in Job
