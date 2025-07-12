@@ -1,9 +1,18 @@
-// src/models/user.model.ts - UPDATED WITH PARTNER SUPPORT
+// src/models/user.model.ts
 import mongoose, { Document, Schema } from "mongoose";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
-// EXISTING INTERFACES - UNCHANGED
+// Define the rating interface for clarity
+export interface IRating {
+  rating: number;
+  ratedBy: mongoose.Types.ObjectId;
+  job: mongoose.Types.ObjectId;
+  comment?: string;
+  ratedAt: Date;
+}
+
+// Existing interfaces (unchanged)
 export interface IWorkExperience {
   jobTitle: string;
   company: string;
@@ -30,7 +39,6 @@ export interface IEducation {
   attachments?: string[];
 }
 
-// EMPLOYER-SPECIFIC INTERFACE (CLEANED UP)
 export interface IEmployerProfile {
   companyName?: string;
   companySize?: "1-10" | "11-50" | "51-200" | "201-500" | "500+";
@@ -43,19 +51,17 @@ export interface IEmployerProfile {
   companyType?: "startup" | "corporate" | "agency" | "nonprofit" | "government";
   jobPostsCount?: number;
   hiresCount?: number;
-  // PARTNER SPECIFIC
   projectType?: string;
 }
 
-// EXISTING USER INTERFACE - ONLY ADDITIONS
 export interface IUser extends Document {
-  // ALL EXISTING FIELDS - COMPLETELY UNCHANGED
+  // Existing fields (unchanged)
   username: string;
   email: string;
   password: string;
   fullName?: string;
-  role?: string; // Keep existing role field
-  experience?: string; // Keep existing experience field
+  role?: string;
+  experience?: string;
   about?: string;
   skills?: Record<string, string>;
   token?: string;
@@ -68,8 +74,6 @@ export interface IUser extends Document {
   forgotPasswordOTPExpire?: Date;
   createdAt: Date;
   updatedAt: Date;
-
-  // EXISTING NEW FIELDS - UNCHANGED
   location?: string;
   principalRole?: string;
   yearsOfExperience?: string;
@@ -86,18 +90,18 @@ export interface IUser extends Document {
   certifications?: ICertification[];
   education?: IEducation[];
   resume?: string;
-
-  // EMPLOYER PROFILE (NOW SUPPORTS PARTNER FIELDS TOO)
   employerProfile?: IEmployerProfile;
+  ratings?: IRating[];
+  averageRating: number; // Added to interface
 
-  // EXISTING METHODS - UNCHANGED
+  // Existing methods (unchanged)
   getResetPasswordToken(): string;
   getSignedJwtToken(): string;
   generateEmailVerificationOTP(): string;
   generateForgotPasswordOTP(): string;
 }
 
-// EXISTING SCHEMAS - COMPLETELY UNCHANGED
+// Existing schemas (unchanged)
 const WorkExperienceSchema = new Schema(
   {
     jobTitle: { type: String, required: true, trim: true },
@@ -155,7 +159,6 @@ const EducationSchema = new Schema(
   { _id: true }
 );
 
-// EMPLOYER PROFILE SCHEMA (CLEANED UP)
 const EmployerProfileSchema = new Schema(
   {
     companyName: { type: String, trim: true },
@@ -175,16 +178,14 @@ const EmployerProfileSchema = new Schema(
     },
     jobPostsCount: { type: Number, default: 0, min: 0 },
     hiresCount: { type: Number, default: 0, min: 0 },
-    // PARTNER SPECIFIC
     projectType: { type: String, trim: true },
   },
   { _id: false }
 );
 
-// UPDATED USER SCHEMA WITH PARTNER ROLE
 const UserSchema: Schema = new Schema(
   {
-    // ALL EXISTING FIELDS - EXACTLY AS YOU HAD THEM
+    // Existing fields (unchanged)
     username: {
       type: String,
       required: [true, "Username is required"],
@@ -214,7 +215,7 @@ const UserSchema: Schema = new Schema(
     },
     role: {
       type: String,
-      enum: ["user", "specialist", "admin", "employer", "partner"], // ADDED "partner"
+      enum: ["user", "specialist", "admin", "employer", "partner"],
       default: "user",
     },
     experience: {
@@ -252,8 +253,6 @@ const UserSchema: Schema = new Schema(
       type: Date,
       select: false,
     },
-
-    // EXISTING NEW FIELDS - UNCHANGED
     location: {
       type: String,
       trim: true,
@@ -311,21 +310,69 @@ const UserSchema: Schema = new Schema(
     resume: {
       type: String,
     },
-
-    // EMPLOYER PROFILE (NOW SUPPORTS PARTNER FIELDS)
     employerProfile: EmployerProfileSchema,
+    ratings: [
+      {
+        rating: {
+          type: Number,
+          required: true,
+          min: [1, "Rating must be at least 1"],
+          max: [5, "Rating must not exceed 5"],
+        },
+        ratedBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+          validate: {
+            validator: async function (userId: mongoose.Types.ObjectId) {
+              const User = mongoose.model("User");
+              const user = await User.findById(userId);
+              return user && ["employer", "partner"].includes(user.role);
+            },
+            message: "Only employers or partners can rate users",
+          },
+        },
+        job: {
+          type: Schema.Types.ObjectId,
+          ref: "Job",
+          required: true,
+        },
+        comment: {
+          type: String,
+          trim: true,
+          maxlength: [500, "Comment must not exceed 500 characters"],
+        },
+        ratedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// ALL EXISTING MIDDLEWARE & METHODS - COMPLETELY UNCHANGED
+// Updated virtual field for averageRating
+UserSchema.virtual("averageRating").get(function (this: IUser) {
+  if (!this.ratings || this.ratings.length === 0) return 0;
+  const validRatings = this.ratings.filter((r) => typeof r.rating === "number");
+  if (validRatings.length === 0) return 0;
+  const sum = validRatings.reduce(
+    (acc: number, curr: IRating) => acc + curr.rating,
+    0
+  );
+  return Number((sum / validRatings.length).toFixed(1));
+});
+
+// Ensure virtual fields are serialized
+UserSchema.set("toJSON", { virtuals: true });
+UserSchema.set("toObject", { virtuals: true });
+
+// Existing middleware (unchanged)
 UserSchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
     return next();
   }
-
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password as string, salt);
@@ -335,40 +382,32 @@ UserSchema.pre("save", async function (next) {
   }
 });
 
+// Existing methods (unchanged)
 UserSchema.methods.getResetPasswordToken = function (): string {
   const resetToken = crypto.randomBytes(20).toString("hex");
-
   this.resetPasswordToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
-
   this.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
-
   return resetToken;
 };
 
 UserSchema.methods.generateEmailVerificationOTP = function (): string {
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
   this.emailVerificationOTP = otp;
   this.emailVerificationOTPExpire = new Date(Date.now() + 10 * 60 * 1000);
-
   console.log("🔍 Debug - Generated Email Verification OTP:", otp);
   console.log("🔍 Debug - OTP Expiry:", this.emailVerificationOTPExpire);
-
   return otp;
 };
 
 UserSchema.methods.generateForgotPasswordOTP = function (): string {
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
   this.forgotPasswordOTP = otp;
   this.forgotPasswordOTPExpire = new Date(Date.now() + 10 * 60 * 1000);
-
   console.log("🔍 Debug - Generated Forgot Password OTP:", otp);
   console.log("🔍 Debug - OTP Expiry:", this.forgotPasswordOTPExpire);
-
   return otp;
 };
 
@@ -376,9 +415,12 @@ UserSchema.methods.getSignedJwtToken = function () {
   return this._id.toString();
 };
 
+UserSchema.index({ "ratings.ratedBy": 1 });
+UserSchema.index({ "ratings.job": 1 });
+
 export const User = mongoose.model<IUser>("User", UserSchema);
 
-// UPDATED HELPER FUNCTIONS FOR ROLE CHECKING
+// Existing helper functions (unchanged)
 export const isEmployer = (user: IUser): boolean => {
   return user.role === "employer";
 };
@@ -397,4 +439,29 @@ export const isAdmin = (user: IUser): boolean => {
 
 export const isEmployerOrPartner = (user: IUser): boolean => {
   return user.role === "employer" || user.role === "partner";
+};
+
+// Helper function for adding a rating (unchanged)
+export const addUserRating = async (
+  userId: string,
+  ratedBy: string,
+  jobId: string,
+  rating: number,
+  comment?: string
+) => {
+  return User.findByIdAndUpdate(
+    userId,
+    {
+      $push: {
+        ratings: {
+          rating,
+          ratedBy,
+          job: jobId,
+          comment,
+          ratedAt: new Date(),
+        },
+      },
+    },
+    { new: true }
+  ).populate("ratings.ratedBy", "fullName employerProfile.companyName");
 };

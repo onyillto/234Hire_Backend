@@ -85,12 +85,7 @@ export const updateJobValidation = [
     .isLength({ min: 20, max: 2000 })
     .withMessage("Job description must be between 20 and 2000 characters"),
   
-  body("location")
-    .optional()
-    .isString()
-    .trim()
-    .isLength({ min: 2, max: 100 })
-    .withMessage("Location must be between 2 and 100 characters"),
+ 
   
   body("jobType")
     .optional()

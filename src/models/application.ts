@@ -1,3 +1,4 @@
+// src/models/application.model.ts
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IApplication extends Document {
@@ -7,7 +8,24 @@ export interface IApplication extends Document {
   coverLetter?: string;
   resumeUrl?: string;
   appliedAt: Date;
-  updatedAt: Date;
+  createdAt: Date; // Explicitly add this
+  updatedAt: Date; // Explicitly add this
+  hiredAt?: Date; // New field for hire date
+}
+
+// Create a lean type that includes timestamps
+export interface IApplicationLean {
+  _id: mongoose.Types.ObjectId;
+  job: any; // Will be populated
+  applicant: any; // Will be populated
+  status: "pending" | "reviewed" | "accepted" | "rejected";
+  coverLetter?: string;
+  resumeUrl?: string;
+  appliedAt: Date;
+  createdAt: Date; // Explicitly include
+  updatedAt: Date; // Explicitly include
+  hiredAt?: Date;
+  __v: number;
 }
 
 const ApplicationSchema: Schema = new Schema(
@@ -45,13 +63,21 @@ const ApplicationSchema: Schema = new Schema(
       type: String,
       trim: true,
     },
+    appliedAt: {
+      type: Date,
+      default: Date.now, // Add default value
+    },
+    hiredAt: {
+      // New field
+      type: Date,
+    },
   },
   {
-    timestamps: true,
+    timestamps: true, // This adds createdAt and updatedAt
   }
 );
 
-// Compound index to prevent duplicate application
+// Compound index to prevent duplicate applications
 ApplicationSchema.index({ job: 1, applicant: 1 }, { unique: true });
 
 // Middleware to increment applications count in Job
@@ -72,7 +98,33 @@ ApplicationSchema.post("findOneAndDelete", async function (doc) {
   }
 });
 
+// New middleware to update hiresCount in User and Job status
+ApplicationSchema.pre("save", async function (next) {
+  if (this.isModified("status") && this.status === "accepted") {
+    this.hiredAt = new Date(); // Set hire date
+    const job = await mongoose.model("Job").findById(this.job);
+    if (job) {
+      // Increment hiresCount for the employer/partner
+      await mongoose.model("User").findByIdAndUpdate(job.postedBy, {
+        $inc: { "employerProfile.hiresCount": 1 },
+      });
+      // Optionally update job status to "completed"
+      await mongoose
+        .model("Job")
+        .findByIdAndUpdate(this.job, { status: "completed" });
+    }
+  }
+  next();
+});
+
 export const Application = mongoose.model<IApplication>(
   "Application",
   ApplicationSchema
 );
+
+// Helper function to get hired users for a job
+export const getHiredUsersForJob = (jobId: string) => {
+  return Application.find({ job: jobId, status: "accepted" })
+    .populate("applicant", "fullName email profilePhoto")
+    .select("applicant hiredAt");
+};

@@ -35,10 +35,11 @@ export interface IJob extends Document {
   postedBy: mongoose.Types.ObjectId; // Reference to User who posted (employer/partner)
 
   // Job Status & Application
-  status: "active" | "paused" | "closed" | "draft";
+  status: "active" | "reviewing" | "completed" ;
   applicationDeadline?: Date;
   applicationsCount: number;
   applicationEmail?: string;
+  applications?: mongoose.Types.ObjectId[]; // New field to reference applications
 
   // Metadata
   category?:
@@ -62,7 +63,7 @@ export interface IJob extends Document {
 
 const JobSchema: Schema = new Schema(
   {
-    // Basic Job Info
+    // ... (all existing fields unchanged)
     title: {
       type: String,
       required: [true, "Job title is required"],
@@ -91,8 +92,6 @@ const JobSchema: Schema = new Schema(
       required: [true, "Work type is required"],
       enum: ["remote", "onsite", "hybrid"],
     },
-
-    // Compensation
     salaryMin: {
       type: Number,
       min: [0, "Minimum salary must be positive"],
@@ -118,8 +117,6 @@ const JobSchema: Schema = new Schema(
       enum: ["hourly", "monthly", "yearly"],
       default: "yearly",
     },
-
-    // Requirements
     skills: {
       type: [String],
       required: [true, "At least one skill is required"],
@@ -152,27 +149,22 @@ const JobSchema: Schema = new Schema(
         "not-required",
       ],
     },
-
-    // Relationship to User Model
     postedBy: {
       type: Schema.Types.ObjectId,
-      ref: "User", // References the User model
+      ref: "User",
       required: [true, "Posted by user is required"],
       validate: {
         validator: async function (userId: mongoose.Types.ObjectId) {
           const User = mongoose.model("User");
           const user = await User.findById(userId);
-          // Only employers and partners can post jobs
           return user && ["employer", "partner"].includes(user.role);
         },
         message: "Only employers and partners can post jobs",
       },
     },
-
-    // Job Status & Application
     status: {
       type: String,
-      enum: ["active", "paused", "closed", "draft"],
+      enum: ["active", "reviewing", "completed"],
       default: "active",
     },
     applicationDeadline: {
@@ -194,8 +186,13 @@ const JobSchema: Schema = new Schema(
       trim: true,
       match: [/^\S+@\S+\.\S+$/, "Please provide a valid email"],
     },
-
-    // Metadata
+    applications: [
+      // New field
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Application",
+      },
+    ],
     category: {
       type: String,
       trim: true,
@@ -221,14 +218,15 @@ const JobSchema: Schema = new Schema(
 );
 
 // Indexes for better query performance
-JobSchema.index({ postedBy: 1 }); // Find jobs by user
-JobSchema.index({ status: 1 }); // Filter by status
-JobSchema.index({ location: 1 }); // Filter by location
-JobSchema.index({ jobType: 1 }); // Filter by job type
-JobSchema.index({ category: 1 }); // Filter by category
-JobSchema.index({ createdAt: -1 }); // Sort by creation date
+JobSchema.index({ postedBy: 1 });
+JobSchema.index({ status: 1 });
+JobSchema.index({ location: 1 });
+JobSchema.index({ jobType: 1 });
+JobSchema.index({ category: 1 });
+JobSchema.index({ createdAt: -1 });
+JobSchema.index({ applications: 1 }); // New index for applications
 
-// Virtual to populate company info from User
+// Virtual to populate company info from User (unchanged)
 JobSchema.virtual("company", {
   ref: "User",
   localField: "postedBy",
@@ -240,36 +238,32 @@ JobSchema.virtual("company", {
   },
 });
 
-// Ensure virtual fields are serialized
+// Ensure virtual fields are serialized (unchanged)
 JobSchema.set("toJSON", { virtuals: true });
 JobSchema.set("toObject", { virtuals: true });
 
-// Middleware to increment/decrement job count in User model
+// Middleware to increment/decrement job count in User model (unchanged)
 JobSchema.post("save", async function (doc) {
   if (this.isNew) {
-    // Increment job posts count when new job is created
-    await mongoose
-      .model("User")
-      .findByIdAndUpdate(doc.postedBy, {
-        $inc: { "employerProfile.jobPostsCount": 1 },
-      });
+    await mongoose.model("User").findByIdAndUpdate(doc.postedBy, {
+      $inc: { "employerProfile.jobPostsCount": 1 },
+    });
   }
 });
 
 JobSchema.post("findOneAndDelete", async function (doc) {
   if (doc) {
-    // Decrement job posts count when job is deleted
-    await mongoose
-      .model("User")
-      .findByIdAndUpdate(doc.postedBy, {
-        $inc: { "employerProfile.jobPostsCount": -1 },
-      });
+    await mongoose.model("User").findByIdAndUpdate(doc.postedBy, {
+      $inc: { "employerProfile.jobPostsCount": -1 },
+    });
+    // Clean up related applications
+    await mongoose.model("Application").deleteMany({ job: doc._id });
   }
 });
 
 export const Job = mongoose.model<IJob>("Job", JobSchema);
 
-// Helper functions for job queries
+// Helper functions for job queries (updated)
 export const getJobsByUser = (userId: string) => {
   return Job.find({ postedBy: userId }).sort({ createdAt: -1 });
 };
@@ -284,5 +278,8 @@ export const getActiveJobs = () => {
 };
 
 export const getJobsWithCompanyInfo = () => {
-  return Job.find().populate("company").sort({ createdAt: -1 });
+  return Job.find()
+    .populate("company")
+    .populate("applications")
+    .sort({ createdAt: -1 });
 };

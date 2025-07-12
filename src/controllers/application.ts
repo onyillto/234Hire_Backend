@@ -70,6 +70,11 @@ export const applyForJob = async (
 
     await application.save();
 
+    // Increment the job's applications count
+    await Job.findByIdAndUpdate(jobId, {
+      $inc: { applicationsCount: 1 },
+    });
+
     res.status(201).json({
       success: true,
       message: "Application submitted successfully",
@@ -77,7 +82,7 @@ export const applyForJob = async (
         id: application._id,
         jobId,
         status: application.status,
-        appliedAt: application.get('createdAt'),
+        appliedAt: application.get("createdAt"),
       },
     });
   } catch (error) {
@@ -126,7 +131,7 @@ export const getMyApplications = async (
     const applications = await Application.find(filter)
       .populate(
         "job",
-        "title location jobType workType salaryMin salaryMax status"
+        "title location jobType workType salaryMin salaryMax status description skills experience"
       )
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -170,7 +175,9 @@ export const getJobApplications = async (
     }
 
     if (user.role !== "partner") {
-      return next(new ErrorResponse("Only partners can view job applications", 403));
+      return next(
+        new ErrorResponse("Only partners can view job applications", 403)
+      );
     }
 
     // Check if job exists and belongs to this partner
@@ -180,7 +187,12 @@ export const getJobApplications = async (
     }
 
     if (job.postedBy.toString() !== userId) {
-      return next(new ErrorResponse("Not authorized to view applications for this job", 403));
+      return next(
+        new ErrorResponse(
+          "Not authorized to view applications for this job",
+          403
+        )
+      );
     }
 
     const { status, page = 1, limit = 10 } = req.query;
@@ -196,9 +208,20 @@ export const getJobApplications = async (
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
-    // Get applications with applicant details
+    // Get applications with applicant details, including ratings and averageRating
     const applications = await Application.find(filter)
-      .populate('applicant', 'fullName email skills experience location profilePhoto')
+      .populate({
+        path: "applicant",
+        select:
+          "fullName email skills experience location profilePhoto ratings averageRating",
+        populate: [
+          {
+            path: "ratings.ratedBy",
+            select: "fullName employerProfile.companyName",
+          },
+          { path: "ratings.job", select: "title" },
+        ],
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
@@ -211,20 +234,21 @@ export const getJobApplications = async (
         id: job._id,
         title: job.title,
         location: job.location,
-        jobType: job.jobType
+        jobType: job.jobType,
       },
       applications,
       pagination: {
         current: pageNum,
         pages: Math.ceil(total / limitNum),
-        total
-      }
+        total,
+      },
     });
   } catch (error) {
     next(error);
   }
 };
 
+// Update application status (Partner only)
 // Update application status (Partner only)
 export const updateApplicationStatus = async (
   req: Request,
@@ -250,8 +274,11 @@ export const updateApplicationStatus = async (
       return next(new ErrorResponse("Only partners can update application status", 403));
     }
 
-    // Find application with job details
-    const application = await Application.findById(applicationId).populate('job');
+    // Find application with job details and populate applicant
+    const application = await Application.findById(applicationId)
+      .populate('job')
+      .populate('applicant', 'fullName email username profilePhoto');
+    
     if (!application) {
       return next(new ErrorResponse("Application not found", 404));
     }
@@ -279,7 +306,17 @@ export const updateApplicationStatus = async (
       application: {
         id: application._id,
         status: application.status,
-        applicant: application.applicant,
+        applicant: {
+          id: (application.applicant as any)._id,
+          fullName: (application.applicant as any).fullName,
+          email: (application.applicant as any).email,
+          username: (application.applicant as any).username,
+          profilePhoto: (application.applicant as any).profilePhoto
+        },
+        job: {
+          id: (application.job as any)._id,
+          title: (application.job as any).title
+        },
         updatedAt: application.updatedAt
       }
     });
@@ -329,6 +366,140 @@ export const getApplicationById = async (
     res.status(200).json({
       success: true,
       application
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAllJobApplications = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return next(new ErrorResponse("User not found in request", 500));
+    }
+
+    // Check if user is partner
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new ErrorResponse("User not found", 404));
+    }
+
+    if (user.role !== "partner") {
+      return next(
+        new ErrorResponse("Only partners can view job applications", 403)
+      );
+    }
+
+    const { status, jobId, page = 1, limit = 10 } = req.query;
+
+    // Get all jobs posted by this partner
+    const partnerJobs = await Job.find({ postedBy: userId }).select("_id");
+    const jobIds = partnerJobs.map((job) => job._id);
+
+    if (jobIds.length === 0) {
+      res.status(200).json({
+        success: true,
+        applications: [],
+        pagination: {
+          current: 1,
+          pages: 0,
+          total: 0,
+        },
+      });
+    }
+
+    // Build filter for applications
+    const filter: any = { job: { $in: jobIds } };
+
+    // Optional filters
+    if (status) {
+      filter.status = status;
+    }
+
+    if (jobId) {
+      filter.job = jobId; // Filter by specific job if provided
+    }
+
+    // Pagination
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get applications with applicant and job details
+    const applications = await Application.find(filter)
+      .populate(
+        "applicant",
+        "fullName email skills experience location profilePhoto ratings averageRating"
+      )
+      .populate(
+        "job",
+        "title location jobType workType salaryMin salaryMax currency"
+      )
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    const total = await Application.countDocuments(filter);
+
+    // Group applications by job for summary
+    const applicationsByJob = applications.reduce(
+      (
+        acc: Record<string, { job: any; count: number; applications: any[] }>,
+        app
+      ) => {
+        const jobId = app.job._id.toString();
+        if (!acc[jobId]) {
+          acc[jobId] = {
+            job: app.job,
+            count: 0,
+            applications: [],
+          };
+        }
+        acc[jobId].count++;
+        acc[jobId].applications.push(app);
+        return acc;
+      },
+      {}
+    );
+
+    // Get statistics
+    const stats = {
+      totalApplications: total,
+      totalJobs: jobIds.length,
+      pendingApplications: await Application.countDocuments({
+        job: { $in: jobIds },
+        status: "pending",
+      }),
+      reviewedApplications: await Application.countDocuments({
+        job: { $in: jobIds },
+        status: "reviewed",
+      }),
+      acceptedApplications: await Application.countDocuments({
+        job: { $in: jobIds },
+        status: "accepted",
+      }),
+      rejectedApplications: await Application.countDocuments({
+        job: { $in: jobIds },
+        status: "rejected",
+      }),
+    };
+
+    res.status(200).json({
+      success: true,
+      applications,
+      //applicationsByJob,
+      stats,
+      pagination: {
+        current: pageNum,
+        pages: Math.ceil(total / limitNum),
+        total,
+      },
     });
   } catch (error) {
     next(error);

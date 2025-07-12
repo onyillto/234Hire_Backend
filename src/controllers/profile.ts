@@ -362,6 +362,7 @@ export const updateProfile = async (
 // @desc   Get user profile
 // @route  GET /api/v1/profile
 // @access Private
+
 export const getProfile = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -376,10 +377,13 @@ export const getProfile = async (
 
     console.log("🔍 Debug - Get profile request for user:", userId);
 
-    // Find the user (exclude sensitive fields - matching your auth pattern)
-    const user = await User.findById(userId).select(
-      "-password -emailVerificationOTP -emailVerificationOTPExpire -forgotPasswordOTP -forgotPasswordOTPExpire -resetPasswordToken -resetPasswordExpire"
-    );
+    // Find the user, exclude sensitive fields, and populate ratings
+    const user = await User.findById(userId)
+      .select(
+        "-password -emailVerificationOTP -emailVerificationOTPExpire -forgotPasswordOTP -forgotPasswordOTPExpire -resetPasswordToken -resetPasswordExpire"
+      )
+      .populate("ratings.ratedBy", "fullName employerProfile.companyName")
+      .populate("ratings.job", "title");
 
     if (!user) {
       return next(new ErrorResponse("User not found", 404));
@@ -387,7 +391,7 @@ export const getProfile = async (
 
     console.log("✅ Debug - Profile retrieved successfully");
 
-    // Helper function to convert skills to plain object (matching your onboarding pattern)
+    // Helper function to convert skills to plain object (unchanged)
     const getSkillsAsObject = (skills: any) => {
       if (!skills) return {};
 
@@ -402,7 +406,7 @@ export const getProfile = async (
       return {};
     };
 
-    // Return response (matching your response pattern)
+    // Return response with all fields
     res.status(200).json({
       success: true,
       message: "Profile retrieved successfully",
@@ -415,7 +419,10 @@ export const getProfile = async (
         experience: user.experience,
         about: user.about,
         skills: getSkillsAsObject(user.skills),
-        // New profile fields
+        token: user.token,
+        isEmailVerified: user.isEmailVerified,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
         location: user.location,
         principalRole: user.principalRole,
         yearsOfExperience: user.yearsOfExperience,
@@ -432,9 +439,9 @@ export const getProfile = async (
         certifications: user.certifications,
         education: user.education,
         resume: user.resume,
-        isEmailVerified: user.isEmailVerified,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
+        employerProfile: user.employerProfile,
+        ratings: user.ratings,
+        averageRating: user.averageRating, // Explicitly included
       },
     });
   } catch (error) {
@@ -442,7 +449,6 @@ export const getProfile = async (
     next(error);
   }
 };
-
 
 
 

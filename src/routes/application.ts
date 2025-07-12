@@ -2,9 +2,10 @@ import express from "express";
 import {
   applyForJob,
   getMyApplications,
-    getJobApplications,
-    getApplicationById,
-    updateApplicationStatus,
+  getJobApplications,
+  getApplicationById,
+  updateApplicationStatus,
+  getAllJobApplications,
 } from "../controllers/application";
 import { protect } from "../middlewares/auth";
 import { validate } from "../middlewares/validation";
@@ -14,7 +15,7 @@ import {
 } from "../vallidations/application.validation";
 
 const router = express.Router();
-
+router.get("/all", protect, getAllJobApplications);
 
 // Specialist routes
 // Apply for a job
@@ -25,7 +26,7 @@ router.post(
   applyForJob
 );
 
-// Get my applications
+// Get my application
 router.get("/my-applications", protect, getMyApplications);
 
 
