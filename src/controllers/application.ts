@@ -435,11 +435,11 @@ export const getAllJobApplications = async (
     const applications = await Application.find(filter)
       .populate(
         "applicant",
-        "fullName email skills experience location profilePhoto ratings averageRating"
+        "fullName email skills experience location profilePhoto ratings averageRating about bio workExperience education certifications otherRoles"
       )
       .populate(
         "job",
-        "title location jobType workType salaryMin salaryMax currency"
+        "title location jobType workType salaryMin salaryMax currency applicationDeadline"
       )
       .sort({ createdAt: -1 })
       .skip(skip)

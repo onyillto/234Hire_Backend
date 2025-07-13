@@ -103,7 +103,7 @@ export const getMyJobs = async (
     const jobIds = jobs.map((job) => job._id);
 
     const applications = await Application.find({ job: { $in: jobIds } })
-      .populate("applicant", "fullName email username profilePhoto")
+      .populate("applicant", "fullName email username profilePhoto ratings averageRating location")
       .populate("job", "title")
       .lean();
 
