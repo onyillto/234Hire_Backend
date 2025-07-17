@@ -35,11 +35,22 @@ export interface IJob extends Document {
   postedBy: mongoose.Types.ObjectId; // Reference to User who posted (employer/partner)
 
   // Job Status & Application
-  status: "active" | "reviewing" | "completed" ;
+  status: "active" | "reviewing" | "completed";
   applicationDeadline?: Date;
   applicationsCount: number;
   applicationEmail?: string;
   applications?: mongoose.Types.ObjectId[]; // New field to reference applications
+
+  // Deliverables
+  deliverables: Array<{
+    title: string;
+    description: string;
+    completionPercentage: number;
+    dueDate: Date;
+    isCompleted: boolean;
+    order: number;
+  }>;
+  overallCompletionPercentage: number;
 
   // Metadata
   category?:
@@ -193,6 +204,47 @@ const JobSchema: Schema = new Schema(
         ref: "Application",
       },
     ],
+
+    // Deliverables Array
+    deliverables: [
+      {
+        title: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        description: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        completionPercentage: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 100,
+        },
+        dueDate: {
+          type: Date,
+          required: true,
+        },
+        isCompleted: {
+          type: Boolean,
+          default: false,
+        },
+        order: {
+          type: Number,
+          required: true,
+        },
+      },
+    ],
+    overallCompletionPercentage: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+
     category: {
       type: String,
       trim: true,

@@ -566,3 +566,220 @@ export const getAllJobs = async (
     next(error);
   }
 };
+
+
+// @desc   Create a new deliverable for a job
+// @route  POST /api/v1/jobs/:jobId/deliverables
+// @access Private/Partner
+export const createDeliverable = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { jobId } = req.params;
+    const { title, description, dueDate } = req.body;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return next(new ErrorResponse("User not found in request", 500));
+    }
+
+    // Find the job
+    const job = await Job.findById(jobId);
+    if (!job) {
+      return next(new ErrorResponse("Job not found", 404));
+    }
+
+    // Check if user owns the job
+    if (job.postedBy.toString() !== userId) {
+      return next(new ErrorResponse("Not authorized to add deliverables to this job", 403));
+    }
+
+    // Get the next order number
+    const nextOrder = job.deliverables.length + 1;
+
+    // Create new deliverable
+    const newDeliverable = {
+      title,
+      description,
+      dueDate: new Date(dueDate),
+      completionPercentage: 0,
+      isCompleted: false,
+      order: nextOrder
+    };
+
+    // Add to job's deliverables array
+    job.deliverables.push(newDeliverable);
+    await job.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Deliverable created successfully",
+      deliverable: job.deliverables[job.deliverables.length - 1]
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc   Update a deliverable
+// @route  PUT /api/v1/jobs/:jobId/deliverables/:deliverableId
+// @access Private/Partner
+export const updateDeliverable = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { jobId, deliverableId } = req.params;
+    const { title, description, dueDate, completionPercentage, isCompleted } = req.body;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return next(new ErrorResponse("User not found in request", 500));
+    }
+
+    // Find the job
+    const job = await Job.findById(jobId);
+    if (!job) {
+      return next(new ErrorResponse("Job not found", 404));
+    }
+
+    // Check if user owns the job
+    if (job.postedBy.toString() !== userId) {
+      return next(new ErrorResponse("Not authorized to update this deliverable", 403));
+    }
+
+    // Find the deliverable
+    const deliverable = (job.deliverables as any).id(deliverableId);
+    if (!deliverable) {
+      return next(new ErrorResponse("Deliverable not found", 404));
+    }
+
+    // Update fields if provided
+    if (title) deliverable.title = title;
+    if (description) deliverable.description = description;
+    if (dueDate) deliverable.dueDate = new Date(dueDate);
+    if (completionPercentage !== undefined) {
+      deliverable.completionPercentage = completionPercentage;
+      deliverable.isCompleted = completionPercentage === 100;
+    }
+    if (isCompleted !== undefined) {
+      deliverable.isCompleted = isCompleted;
+      if (isCompleted) deliverable.completionPercentage = 100;
+    }
+
+    // Calculate overall completion percentage
+    const totalDeliverables = job.deliverables.length;
+    const completedDeliverables = job.deliverables.filter(d => d.isCompleted).length;
+    job.overallCompletionPercentage = Math.round((completedDeliverables / totalDeliverables) * 100);
+
+    await job.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Deliverable updated successfully",
+      deliverable: deliverable
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc   Delete a deliverable
+// @route  DELETE /api/v1/jobs/:jobId/deliverables/:deliverableId
+// @access Private/Partner
+export const deleteDeliverable = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { jobId, deliverableId } = req.params;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return next(new ErrorResponse("User not found in request", 500));
+    }
+
+    // Find the job
+    const job = await Job.findById(jobId);
+    if (!job) {
+      return next(new ErrorResponse("Job not found", 404));
+    }
+
+    // Check if user owns the job
+    if (job.postedBy.toString() !== userId) {
+      return next(new ErrorResponse("Not authorized to delete this deliverable", 403));
+    }
+
+    // Find and remove the deliverable
+    const deliverable = (job.deliverables as any).id(deliverableId);
+    if (!deliverable) {
+      return next(new ErrorResponse("Deliverable not found", 404));
+    }
+
+    // Remove the deliverable
+    (deliverable as any).remove();
+
+    // Reorder remaining deliverables
+    job.deliverables.forEach((d, index) => {
+      d.order = index + 1;
+    });
+
+    // Recalculate overall completion percentage
+    if (job.deliverables.length > 0) {
+      const completedDeliverables = job.deliverables.filter(d => d.isCompleted).length;
+      job.overallCompletionPercentage = Math.round((completedDeliverables / job.deliverables.length) * 100);
+    } else {
+      job.overallCompletionPercentage = 0;
+    }
+
+    await job.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Deliverable deleted successfully"
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc   Get all deliverables for a job
+// @route  GET /api/v1/jobs/:jobId/deliverables
+// @access Private/Partner
+export const getJobDeliverables = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { jobId } = req.params;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return next(new ErrorResponse("User not found in request", 500));
+    }
+
+    // Find the job
+    const job = await Job.findById(jobId).select('deliverables postedBy overallCompletionPercentage');
+    if (!job) {
+      return next(new ErrorResponse("Job not found", 404));
+    }
+
+    // Check if user owns the job (you can modify this for hired freelancers too)
+    if (job.postedBy.toString() !== userId) {
+      return next(new ErrorResponse("Not authorized to view these deliverables", 403));
+    }
+
+    res.status(200).json({
+      success: true,
+      deliverables: job.deliverables,
+      overallCompletionPercentage: job.overallCompletionPercentage
+    });
+  } catch (error) {
+    next(error);
+  }
+};
