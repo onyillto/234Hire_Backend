@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { Job } from "../models/job";
 import { User } from "../models/user";
 import { ErrorResponse } from "../utils/error-response";
+import { NotificationService } from "../services/notification";
 
 import { Application } from "../models/application";
 
@@ -17,34 +18,39 @@ export const createJob = async (
     const userId = (req as any).user?.id;
 
     if (!userId) {
-      return next(new ErrorResponse("User not found in request", 500));
+      return next(new ErrorResponse("User not found in request", 401));
     }
 
-    // Check if user is partner
+    // Check if the user is an employer or partner before creating a job
     const user = await User.findById(userId);
-    if (!user) {
-      return next(new ErrorResponse("User not found", 404));
-    }
-
-    if (user.role !== "partner") {
-      return next(new ErrorResponse("Only partners can create jobs", 403));
-    }
-
-    // Check if partner completed onboarding
-    if (!user.employerProfile?.companyName) {
+    if (!user || !["employer", "partner"].includes(user.role as string)) {
       return next(
-        new ErrorResponse("Please complete partner onboarding first", 400)
+        new ErrorResponse(
+          "Not authorized. Only employers or partners can post jobs.",
+          403
+        )
       );
     }
 
-    // Create job
-    const job = new Job({
-      ...req.body,
-      postedBy: userId,
-      status: "active",
-    });
+    // Create a new job instance, associating it with the user
+    const job = new Job({ ...req.body, postedBy: userId });
 
     await job.save();
+
+    // ===== NEW: NOTIFICATION LOGIC =====
+    // Notify matching specialists about new job
+    try {
+      const notifiedCount = await NotificationService.notifyJobPosted(
+        job.id,
+        job.title,
+        job.skills
+      );
+      console.log(`✅ Notified ${notifiedCount} specialists about new job`);
+    } catch (notificationError) {
+      console.error("❌ Failed to send job notifications:", notificationError);
+      // Don't fail the request if notifications fail
+    }
+    // ===== END NEW LOGIC =====
 
     res.status(201).json({
       success: true,
@@ -55,6 +61,7 @@ export const createJob = async (
     next(error);
   }
 };
+
 
 
 // @desc   Get jobs created by the authenticated partner
@@ -778,6 +785,70 @@ export const getJobDeliverables = async (
       success: true,
       deliverables: job.deliverables,
       overallCompletionPercentage: job.overallCompletionPercentage
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+export const completeJob = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = (req as any).user?.id;
+
+    // Find job and validate ownership
+    const job = await Job.findById(id);
+    if (!job) {
+      return next(new ErrorResponse("Job not found", 404));
+    }
+
+    if (job.postedBy.toString() !== userId) {
+      return next(
+        new ErrorResponse("Not authorized to complete this job", 403)
+      );
+    }
+
+    // Update job status
+    job.status = "completed";
+    await job.save();
+
+    // Find accepted application to get the specialist
+    const acceptedApplication = await Application.findOne({
+      job: id,
+      status: "accepted",
+    }).populate("applicant");
+
+    if (acceptedApplication) {
+      // Notify both employer and specialist
+      await Promise.all([
+        NotificationService.notifyJobCompleted(
+          userId, // employer
+          id,
+          job.title,
+          true // isEmployer = true
+        ),
+        NotificationService.notifyJobCompleted(
+          (acceptedApplication.applicant as any)._id, // specialist
+          id,
+          job.title,
+          false // isEmployer = false
+        ),
+      ]);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Job completed successfully",
+      job: {
+        id: job._id,
+        title: job.title,
+        status: job.status,
+      },
     });
   } catch (error) {
     next(error);

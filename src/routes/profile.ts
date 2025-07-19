@@ -11,6 +11,7 @@ import {
   profileImageUploadMiddleware,
 } from "../controllers/profile";
 import { protect } from "../middlewares/auth";
+import { getUserOverview } from "../controllers/userOverview";
 import { validate } from "../middlewares/validation";
 
 const router = express.Router();
@@ -337,7 +338,7 @@ router.get('/image', protect, serveProfileImage);
 router.put('/update', protect, updateProfile);
 console.log("✅ Profile routes set up complete");
 
-
+router.get("/overview", protect, getUserOverview);
 
 
 export default router;

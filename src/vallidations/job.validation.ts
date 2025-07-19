@@ -99,7 +99,7 @@ export const updateJobValidation = [
   
   body("status")
     .optional()
-    .isIn(["active", "paused", "closed", "draft"])
+    .isIn(["active", "paused", "closed", "draft", "cancelled", "accepted", "reviewing", "completed"])
     .withMessage("Invalid job status"),
   
   body("skills")

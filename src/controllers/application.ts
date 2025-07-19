@@ -3,7 +3,8 @@ import { Application } from "../models/application";
 import { Job } from "../models/job";
 import { User } from "../models/user";
 import { ErrorResponse } from "../utils/error-response";
-
+import { TransactionService } from "../services/transaction";
+import { NotificationService } from "../services/notification";
 export const applyForJob = async (
   req: Request,
   res: Response,
@@ -69,7 +70,22 @@ export const applyForJob = async (
     });
 
     await application.save();
-
+    // ===== NEW: NOTIFY EMPLOYER =====
+    try {
+      await NotificationService.notifyNewApplication(
+        job.postedBy.toString(), // employer ID
+        userId, // applicant ID
+        jobId,
+        application.id,
+        job.title,
+        user.fullName || user.username
+      );
+      console.log("✅ Employer notified about new application");
+    } catch (notificationError) {
+      console.error("❌ Failed to notify employer:", notificationError);
+      // Don't fail the request if notification fails
+    }
+    // ===== END NEW LOGIC =====
     // Increment the job's applications count
     await Job.findByIdAndUpdate(jobId, {
       $inc: { applicationsCount: 1 },
@@ -250,6 +266,7 @@ export const getJobApplications = async (
 
 // Update application status (Partner only)
 // Update application status (Partner only)
+// Update application status (Partner only)
 export const updateApplicationStatus = async (
   req: Request,
   res: Response,
@@ -271,34 +288,115 @@ export const updateApplicationStatus = async (
     }
 
     if (user.role !== "partner") {
-      return next(new ErrorResponse("Only partners can update application status", 403));
+      return next(
+        new ErrorResponse("Only partners can update application status", 403)
+      );
     }
 
     // Find application with job details and populate applicant
     const application = await Application.findById(applicationId)
-      .populate('job')
-      .populate('applicant', 'fullName email username profilePhoto');
-    
+      .populate("job")
+      .populate("applicant", "fullName email username profilePhoto");
+
     if (!application) {
       return next(new ErrorResponse("Application not found", 404));
     }
 
     // Check if this partner owns the job
     if ((application.job as any).postedBy.toString() !== userId) {
-      return next(new ErrorResponse("Not authorized to update this application", 403));
+      return next(
+        new ErrorResponse("Not authorized to update this application", 403)
+      );
     }
+
+    // Store previous status for comparison
+    const previousStatus = application.status;
 
     // Update application status
     application.status = status;
     await application.save();
 
-    // If accepted, increment hires count
-    if (status === "accepted") {
-      await User.findByIdAndUpdate(
-        userId,
-        { $inc: { 'employerProfile.hiresCount': 1 } }
-      );
+    // ===== COMPREHENSIVE NOTIFICATION LOGIC =====
+    try {
+      const job = application.job as any;
+      const applicant = application.applicant as any;
+      const employerName = user.fullName || user.username;
+
+      // Handle different status transitions
+      switch (status) {
+        case "reviewed":
+          // Notify applicant that their application is being reviewed
+          await NotificationService.notifyApplicationReviewed(
+            applicant._id.toString(),
+            userId,
+            job._id.toString(),
+            applicationId,
+            job.title,
+            employerName
+          );
+          break;
+
+        case "accepted":
+          // Notify applicant about acceptance
+          await NotificationService.notifyApplicationAccepted(
+            applicant._id.toString(),
+            userId,
+            job._id.toString(),
+            applicationId,
+            job.title
+          );
+
+          // Create transaction for payment
+          const paymentAmount = job.salaryMax || job.salaryMin || 1000;
+          await TransactionService.createJobPayment({
+            jobId: job._id.toString(),
+            employerId: userId,
+            specialistId: applicant._id.toString(),
+            amount: paymentAmount,
+            paymentMethod: "credit_card",
+          });
+
+          // Increment hires count
+          await User.findByIdAndUpdate(userId, {
+            $inc: { "employerProfile.hiresCount": 1 },
+          });
+
+          console.log(`✅ Transaction created and hire count incremented`);
+          break;
+
+        case "rejected":
+          // Notify applicant about rejection
+          await NotificationService.notifyApplicationRejected(
+            applicant._id.toString(),
+            userId,
+            job._id.toString(),
+            applicationId,
+            job.title
+          );
+          break;
+
+        case "pending":
+          // If status changed back to pending (rare case)
+          if (previousStatus !== "pending") {
+            await NotificationService.notifyApplicationStatusChanged(
+              applicant._id.toString(),
+              userId,
+              job._id.toString(),
+              applicationId,
+              job.title,
+              "pending",
+              "Your application status has been updated to pending review."
+            );
+          }
+          break;
+      }
+
+      console.log(`✅ Notification sent for application ${status}`);
+    } catch (notificationError) {
+      console.error("❌ Failed to send notifications:", notificationError);
+      // Don't fail the request if notifications fail
     }
+    // ===== END NOTIFICATION LOGIC =====
 
     res.status(200).json({
       success: true,
@@ -311,14 +409,14 @@ export const updateApplicationStatus = async (
           fullName: (application.applicant as any).fullName,
           email: (application.applicant as any).email,
           username: (application.applicant as any).username,
-          profilePhoto: (application.applicant as any).profilePhoto
+          profilePhoto: (application.applicant as any).profilePhoto,
         },
         job: {
           id: (application.job as any)._id,
-          title: (application.job as any).title
+          title: (application.job as any).title,
         },
-        updatedAt: application.updatedAt
-      }
+        updatedAt: application.updatedAt,
+      },
     });
   } catch (error) {
     next(error);
