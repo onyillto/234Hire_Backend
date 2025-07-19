@@ -994,7 +994,7 @@ async function getTransactions(userId: string): Promise<any[]> {
       if (transaction.status === "completed") {
         // Cast the populated `job` field to the IJob interface to inform
         // TypeScript about the populated properties.
-        const job = transaction.job as IJob;
+        const job = transaction.job as unknown as IJob;
 
         // Only include if job is completed and 100% done
         if (
@@ -1004,7 +1004,8 @@ async function getTransactions(userId: string): Promise<any[]> {
           // Also verify there's an accepted application
           const acceptedApp = await Application.findOne({
             job: job._id, // Use the _id from the populated job
-            applicant: (transaction.payee as IUser)._id, // Cast payee for type safety
+            // The payee of the transaction is the applicant who got accepted.
+            applicant: (transaction.payee as unknown as IUser)._id,
             status: "accepted",
           }).lean();
 
