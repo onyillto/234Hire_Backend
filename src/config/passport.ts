@@ -20,7 +20,8 @@ passport.use(
 
       if (user) {
         return done(null, {
-          id: (user._id as string).toString(),
+          id: user._id.toString(),
+          
           username: user.username,
           role: user.role || "user",
           email: user.email,

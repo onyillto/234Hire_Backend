@@ -32,7 +32,7 @@ export class NotificationService {
     return notifications.length;
   }
   /**
-   * Notify applicant when application is accepted
+   * Notify applicant when application is accepte
    */
   public static async notifyApplicationAccepted(
     recipientId: string,

@@ -164,13 +164,13 @@ const ApplicationSchema: Schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Job",
       required: [true, "Job reference is required"],
-      index: true,
+      
     },
     applicant: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: [true, "Applicant reference is required"],
-      index: true,
+      
       validate: {
         validator: async function (userId: mongoose.Types.ObjectId) {
           const User = mongoose.model("User");
@@ -184,7 +184,7 @@ const ApplicationSchema: Schema = new Schema(
       type: String,
       enum: ["pending", "reviewed", "accepted", "rejected", "withdrawn"],
       default: "pending",
-      index: true,
+      
     },
     coverLetter: {
       type: String,
@@ -198,7 +198,7 @@ const ApplicationSchema: Schema = new Schema(
     appliedAt: {
       type: Date,
       default: Date.now,
-      index: true,
+      
     },
     hiredAt: Date,
     rejectedAt: Date,

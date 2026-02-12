@@ -31,7 +31,7 @@ const NotificationSchema: Schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: [true, "Recipient is required"],
-      index: true,
+      
     },
     sender: {
       type: Schema.Types.ObjectId,
@@ -46,7 +46,7 @@ const NotificationSchema: Schema = new Schema(
         "application_rejected",
         "job_completed",
       ],
-      index: true,
+      
     },
     title: {
       type: String,
@@ -63,7 +63,7 @@ const NotificationSchema: Schema = new Schema(
     isRead: {
       type: Boolean,
       default: false,
-      index: true,
+      
     },
     relatedJob: {
       type: Schema.Types.ObjectId,

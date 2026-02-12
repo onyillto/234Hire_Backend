@@ -135,19 +135,19 @@ const JobSchema: Schema = new Schema(
       required: [true, "Job location is required"],
       trim: true,
       maxlength: [100, "Location must not exceed 100 characters"],
-      index: true,
+      
     },
     jobType: {
       type: String,
       required: [true, "Job type is required"],
       enum: ["full-time", "part-time", "contract", "freelance", "internship"],
-      index: true,
+      
     },
     workType: {
       type: String,
       required: [true, "Work type is required"],
       enum: ["remote", "onsite", "hybrid"],
-      index: true,
+      
     },
 
     // Compensation
@@ -187,7 +187,7 @@ const JobSchema: Schema = new Schema(
         },
         message: "At least one skill is required",
       },
-      index: true,
+      
     },
     experience: {
       type: String,
@@ -199,7 +199,7 @@ const JobSchema: Schema = new Schema(
         "5-10 years",
         "10+ years",
       ],
-      index: true,
+      
     },
     education: {
       type: String,
@@ -218,7 +218,7 @@ const JobSchema: Schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: [true, "Posted by user is required"],
-      index: true,
+      
       validate: {
         validator: async function (userId: mongoose.Types.ObjectId) {
           const User = mongoose.model("User");
@@ -234,7 +234,7 @@ const JobSchema: Schema = new Schema(
       type: String,
       enum: ["active", "reviewing", "completed", "paused", "cancelled" ,"accepted"],
       default: "active",
-      index: true,
+      
     },
     applicationDeadline: {
       type: Date,
@@ -244,7 +244,7 @@ const JobSchema: Schema = new Schema(
         },
         message: "Application deadline must be in the future",
       },
-      index: true,
+      
     },
     applicationsCount: {
       type: Number,
@@ -336,7 +336,7 @@ const JobSchema: Schema = new Schema(
         "data",
         "other",
       ],
-      index: true,
+      
     },
     tags: [
       {
@@ -360,7 +360,7 @@ const JobSchema: Schema = new Schema(
       type: String,
       enum: ["low", "normal", "high", "urgent"],
       default: "normal",
-      index: true,
+      
     },
     urgencyReason: {
       type: String,

@@ -47,10 +47,15 @@ export const markNotificationRead = async (
     const { id } = req.params;
     const userId = (req as any).user?.id;
 
+
+    
     if (!userId) {
       return next(new ErrorResponse("User not found in request", 500));
     }
 
+    if (typeof id !== 'string') {
+      return next(new ErrorResponse("Invalid notification ID", 400));
+    }
     const notification = await NotificationService.markAsRead(id, userId);
 
     if (!notification) {

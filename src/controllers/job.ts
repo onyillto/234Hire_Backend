@@ -801,6 +801,11 @@ export const completeJob = async (
     const { id } = req.params;
     const userId = (req as any).user?.id;
 
+    // Ensure id is a string
+    if (typeof id !== 'string') {
+      return next(new ErrorResponse("Invalid job ID provided", 400));
+    }
+
     // Find job and validate ownership
     const job = await Job.findById(id);
     if (!job) {

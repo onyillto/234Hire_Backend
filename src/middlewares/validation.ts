@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { validationResult } from "express-validator";
-import { ValidationChain } from "express-validator";
+import { validationResult, ValidationChain } from "express-validator";
 import { ErrorResponse } from "../utils/error-response";
 
 export const validate = (validations: ValidationChain[]) => {
@@ -14,7 +13,7 @@ export const validate = (validations: ValidationChain[]) => {
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      const errorMessages = errors.array().map((error) => error.msg);
+      const errorMessages = errors.array().map((error: any) => error.msg);
       console.log("❌ Validation errors:", errorMessages);
       return next(new ErrorResponse(errorMessages[0], 400));
     }
@@ -22,4 +21,4 @@ export const validate = (validations: ValidationChain[]) => {
     console.log("✅ Validation passed");
     next();
   };
-}
+};

@@ -15,6 +15,10 @@ export const applyForJob = async (
     const userId = (req as any).user?.id;
     const { coverLetter, resumeUrl } = req.body;
 
+    if (typeof jobId !== 'string') {
+      return next(new ErrorResponse("Invalid job ID", 400));
+    }
+
     if (!userId) {
       return next(new ErrorResponse("User not found in request", 500));
     }
@@ -276,6 +280,10 @@ export const updateApplicationStatus = async (
     const { id: applicationId } = req.params;
     const { status } = req.body;
     const userId = (req as any).user?.id;
+
+    if (typeof applicationId !== 'string') {
+      return next(new ErrorResponse("Invalid application ID", 400));
+    }
 
     if (!userId) {
       return next(new ErrorResponse("User not found in request", 500));
